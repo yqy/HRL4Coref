@@ -9,12 +9,9 @@ import timeit
 
 from conf import *
 
-import Mention
-import Reader
 import word2vec
 import DataGenerate
-#import policy_network
-import policy_network_single as policy_network
+import policy_network
 
 import cPickle
 sys.setrecursionlimit(1000000)
@@ -150,8 +147,7 @@ def generater_pretrain(train_case, gold_dict):
         #numpy.array(train_batch_list),numpy.array(mask_batch_list),numpy.array(lable_batch_list)
 
 
-#def generate_pretrain_case(doc_mention_arrays,doc_pair_arrays,gold_chain=[],network=None):
-def generate_pretrain_case(train_case,gold_chain=[],network=None):
+def generate_pretrain_case(train_case,gold_chain=[]):
     cluster_info = []
     new_cluster_num = 0
 
@@ -162,6 +158,27 @@ def generate_pretrain_case(train_case,gold_chain=[],network=None):
         for item in chain:
             gold_dict[item] = chain
 
-    #return batch_generater_pretrain(train_case[1:],gold_dict)
     return generater_pretrain(train_case,gold_dict)
-    ## train_case[0] = Null. because the first mention has no antecedents
+
+def generate_pretrain_test(train_case,gold_chain=[],network=None):
+    cluster_info = []
+    new_cluster_num = 0 
+
+    for single,tc in train_case:
+        if len(tc) == 0:
+            action_probability = [1] 
+        else:
+            action_probability = list(network.predict_pretrain_policy(single,tc)[0])
+        action = policy_network.choose_action(action_probability)
+
+        if (action-1) == -1: # -1 means a new cluster
+            should_cluster = new_cluster_num
+            new_cluster_num += 1
+        else:
+            should_cluster = cluster_info[action-1]
+
+        cluster_info.append(should_cluster)
+
+    ev_document = policy_network.get_evaluation_document(cluster_info,gold_chain,new_cluster_num)
+
+    return ev_document

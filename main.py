@@ -9,15 +9,11 @@ import timeit
 
 from conf import *
 
-import Mention
-import Reader
 import word2vec
 import DataGenerate
 import evaluation
-#import policy_network
-import policy_network_single as policy_network
+import policy_network
 import network
-#import network_batch as network
 import pretrain
 
 import cPickle
@@ -37,70 +33,88 @@ def main():
         embedding_dimention = 64
     w2v = word2vec.Word2Vec(embedding_dir,embedding_dimention)
 
-    #network_model
-    if os.path.isfile("./model/network_model."+args.language):
-        read_f = file('./model/network_model.'+args.language, 'rb')
-        #read_f = file('./model/network_model_pretrain.'+args.language, 'rb')
-        network_model = cPickle.load(read_f)
-        print >> sys.stderr,"Read model from ./model/network_model."+args.language
+    #network_model_manager
+    if os.path.isfile("./model/network_model_manager."+args.language):
+        read_f = file('./model/network_model_manager.'+args.language, 'rb')
+        #read_f = file('./model/network_model_pretrain_manager.'+args.language, 'rb')
+        network_manager = cPickle.load(read_f)
+        print >> sys.stderr,"Read model from ./model/network_model_manager."+args.language
     else:
         inpt_dimention = 1738
         single_dimention = 855
+        cluster_dimention = 855
         if args.language == "en":
             inpt_dimention = 1374
             single_dimention = 673
+            cluster_dimention = 855
 
-        network_model = network.NetWork(inpt_dimention,single_dimention,1000)
-        print >> sys.stderr,"save model ..."
-        save_f = file('./model/network_model.'+args.language, 'wb')
-        cPickle.dump(network_model, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
+        network_manager = network.Manager(inpt_dimention,single_dimention,1000)
+        print >> sys.stderr,"save model network_manager..."
+        save_f = file('./model/network_model_manager.'+args.language, 'wb')
+        cPickle.dump(network_manager, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
+        save_f.close()
+
+    #network_model_manager
+    if os.path.isfile("./model/network_model_worker."+args.language):
+        read_f = file('./model/network_model_worker.'+args.language, 'rb')
+        #read_f = file('./model/network_model_pretrain_worker.'+args.language, 'rb')
+        network_worker = cPickle.load(read_f)
+        print >> sys.stderr,"Read model from ./model/network_model_worker."+args.language
+    else:
+        inpt_dimention = 1738
+        single_dimention = 855
+        cluster_dimention = 855
+        if args.language == "en":
+            inpt_dimention = 1374
+            single_dimention = 673
+            cluster_dimention = 855
+
+        network_worker = network.Worker(inpt_dimention,single_dimention,cluster_dimention,1000)
+        print >> sys.stderr,"save model network_worker..."
+        save_f = file('./model/network_model_worker.'+args.language, 'wb')
+        cPickle.dump(network_worker, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
         save_f.close()
 
     train_docs = DataGenerate.doc_data_generater("train")
     dev_docs = DataGenerate.doc_data_generater("dev")
     test_docs = DataGenerate.doc_data_generater("test")
 
-    #pretrain
+    #pretrain_manager
     times = 0
     best_cost = 99999999
-    for echo in range(20):
+    for echo in range(1):
         start_time = timeit.default_timer()
         print "Pretrain ECHO:",echo
         cost_this_turn = 0.0
         #print >> sys.stderr, network_model.get_weight_sum()
-        #for train_doc_mention_array,train_doc_pair_array,train_doc_gold_chain in DataGenerate.array_generater(train_docs,"train",w2v):
         for cases,gold_chain in DataGenerate.case_generater(train_docs,"train",w2v):
-            #for single_mention_array,train_list,lable_list in pretrain.generate_pretrain_case(train_doc_mention_array,train_doc_pair_array,train_doc_gold_chain,network_model):
             if len(cases) >= 700:
                 continue
-            for single_mention_array,train_list,lable_list in pretrain.generate_pretrain_case(cases,gold_chain,network_model):
-                cost_this_turn += network_model.pre_train_step(single_mention_array,train_list,lable_list,0.0001)[0]
-                #cost_this_turn += network_model.pre_train_step(single_mention_array,train_list,lable_list,0.00003)[0]
+            for single_mention_array,train_list,lable_list in pretrain.generate_pretrain_case(cases,gold_chain):
+                cost_this_turn += network_manager.pre_train_step(single_mention_array,train_list,lable_list,0.0001)[0]
 
         end_time = timeit.default_timer()
-        print >> sys.stderr, "PreTrain",echo,"Total cost:",cost_this_turn
-        print >> sys.stderr, "PreTRAINING Use %.3f seconds"%(end_time-start_time)
+        print >> sys.stderr, "PreTrain for Manager",echo,"Total cost:",cost_this_turn
+        print >> sys.stderr, "PreTraining for Manager Use %.3f seconds"%(end_time-start_time)
 
         if cost_this_turn <= best_cost:
-            save_f = file('./model/network_model_pretrain_best.'+args.language, 'wb')
-            cPickle.dump(network_model, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
+            save_f = file('./model/network_model_pretrain_manager_best.'+args.language, 'wb')
+            cPickle.dump(network_manager, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
             save_f.close()
             best_cost = cost_this_turn
 
-        save_f = file('./model/network_model_pretrain.'+args.language, 'wb')
-        cPickle.dump(network_model, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
+        save_f = file('./model/network_model_pretrain_manager.'+args.language, 'wb')
+        cPickle.dump(network_manager, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
         save_f.close()
-    print >> sys.stderr,"Begin test on DEV after pertraining"
-    
+
     ## test performance after pretraining
+    print >> sys.stderr,"Begin test on DEV after Manager pertraining"
     dev_docs_for_test = []
     num = 0
-    #for dev_doc_mention_array,dev_doc_pair_array,dev_doc_gold_chain in DataGenerate.array_generater(dev_docs,"dev",w2v):
-        #ev_doc = policy_network.generate_policy_test(dev_doc_mention_array,dev_doc_pair_array,dev_doc_gold_chain,network_model)
     for cases,gold_chain in DataGenerate.case_generater(dev_docs,"dev",w2v):
-        ev_doc = policy_network.generate_policy_test(cases,gold_chain,network_model)
+        ev_doc = pretrain.generate_pretrain_test(cases,gold_chain,network_manager)
         dev_docs_for_test.append(ev_doc)
-    print "Performance on DEV after PreTRAINING"
+    print "Performance on DEV after Manager PreTRAINING"
     mp,mr,mf = evaluation.evaluate_documents(dev_docs_for_test,evaluation.muc)
     print "MUC: recall: %f precision: %f  f1: %f"%(mr,mp,mf)
     bp,br,bf = evaluation.evaluate_documents(dev_docs_for_test,evaluation.b_cubed)
@@ -109,7 +123,57 @@ def main():
     print "CEAF: recall: %f precision: %f  f1: %f"%(cr,cp,cf)
     print "##################################################" 
     sys.stdout.flush()
-    print >> sys.stderr,"Pre Train done"
+    print >> sys.stderr,"Manager Pre Train done"
+
+    return
+
+
+    #pretrain_worker
+    times = 0
+    best_cost = 99999999
+    for echo in range(20):
+        start_time = timeit.default_timer()
+        print "Pretrain ECHO:",echo
+        cost_this_turn = 0.0
+        #print >> sys.stderr, network_model.get_weight_sum()
+        for cases,gold_chain in DataGenerate.case_generater(train_docs,"train",w2v):
+            if len(cases) >= 700:
+                continue
+            for single_mention_array,train_list,lable_list in pretrain.generate_pretrain_case(cases,gold_chain,network_model):
+                cost_this_turn += network_manager.pre_train_step(single_mention_array,train_list,lable_list,0.0001)[0]
+
+        end_time = timeit.default_timer()
+        print >> sys.stderr, "PreTrain4Manager",echo,"Total cost:",cost_this_turn
+        print >> sys.stderr, "PreTraining4Manager Use %.3f seconds"%(end_time-start_time)
+
+        if cost_this_turn <= best_cost:
+            save_f = file('./model/network_model_pretrain_manager_best.'+args.language, 'wb')
+            cPickle.dump(network_manager, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
+            save_f.close()
+            best_cost = cost_this_turn
+
+        save_f = file('./model/network_model_pretrain_manager.'+args.language, 'wb')
+        cPickle.dump(network_manager, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
+        save_f.close()
+
+    ## test performance after pretraining
+    print >> sys.stderr,"Begin test on DEV after Manager pertraining"
+    dev_docs_for_test = []
+    num = 0
+    for cases,gold_chain in DataGenerate.case_generater(dev_docs,"dev",w2v):
+        ev_doc = policy_network.generate_policy_test(cases,gold_chain,network_manager)
+        dev_docs_for_test.append(ev_doc)
+    print "Performance on DEV after Manager PreTRAINING"
+    mp,mr,mf = evaluation.evaluate_documents(dev_docs_for_test,evaluation.muc)
+    print "MUC: recall: %f precision: %f  f1: %f"%(mr,mp,mf)
+    bp,br,bf = evaluation.evaluate_documents(dev_docs_for_test,evaluation.b_cubed)
+    print "BCUBED: recall: %f precision: %f  f1: %f"%(br,bp,bf)
+    cp,cr,cf = evaluation.evaluate_documents(dev_docs_for_test,evaluation.ceafe)
+    print "CEAF: recall: %f precision: %f  f1: %f"%(cr,cp,cf)
+    print "##################################################" 
+    sys.stdout.flush()
+    print >> sys.stderr,"Manager Pre Train done"
+
 
     ##train
     train4test = [] # add 5 items for testing the training performance
