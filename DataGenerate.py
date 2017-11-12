@@ -33,8 +33,8 @@ def read_from_file(fil,goldf,language):
 
         i += 1
 
-        if i > 2:
-            break 
+        #if i > 2:
+        #    break 
 
         start_time = timeit.default_timer()
         line = line.strip()

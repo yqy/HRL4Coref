@@ -82,7 +82,7 @@ def main():
     #pretrain_manager
     times = 0
     best_cost = 99999999
-    for echo in range(1):
+    for echo in range(20):
         start_time = timeit.default_timer()
         print "Pretrain ECHO:",echo
         cost_this_turn = 0.0
