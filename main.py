@@ -35,8 +35,8 @@ def main():
 
     #network_model_manager
     if os.path.isfile("./model/network_model_manager."+args.language):
-        read_f = file('./model/network_model_manager.'+args.language, 'rb')
-        #read_f = file('./model/network_model_pretrain_manager.'+args.language, 'rb')
+        #read_f = file('./model/network_model_manager.'+args.language, 'rb')
+        read_f = file('./model/network_model_pretrain_manager.'+args.language, 'rb')
         network_manager = cPickle.load(read_f)
         print >> sys.stderr,"Read model from ./model/network_model_manager."+args.language
     else:
@@ -54,7 +54,7 @@ def main():
         cPickle.dump(network_manager, save_f, protocol=cPickle.HIGHEST_PROTOCOL)
         save_f.close()
 
-    #network_model_manager
+    #network_model_worker
     if os.path.isfile("./model/network_model_worker."+args.language):
         read_f = file('./model/network_model_worker.'+args.language, 'rb')
         #read_f = file('./model/network_model_pretrain_worker.'+args.language, 'rb')
@@ -82,7 +82,9 @@ def main():
     #pretrain_manager
     times = 0
     best_cost = 99999999
-    for echo in range(20):
+    step = 0
+    lr = 0.00009
+    for echo in range(10):
         start_time = timeit.default_timer()
         print "Pretrain ECHO:",echo
         cost_this_turn = 0.0
@@ -91,7 +93,11 @@ def main():
             if len(cases) >= 700:
                 continue
             for single_mention_array,train_list,lable_list in pretrain.generate_pretrain_case(cases,gold_chain):
-                cost_this_turn += network_manager.pre_train_step(single_mention_array,train_list,lable_list,0.0001)[0]
+                #cost_this_turn += network_manager.pre_train_step(single_mention_array,train_list,lable_list,0.0001)[0]
+                cost_this_turn += network_manager.pre_train_step(single_mention_array,train_list,lable_list,lr)[0]
+            step += 1
+            if step%128 == 0:
+                lr = lr*0.99
 
         end_time = timeit.default_timer()
         print >> sys.stderr, "PreTrain for Manager",echo,"Total cost:",cost_this_turn

@@ -149,8 +149,8 @@ class Manager():
         y = T.iscalar('classification')
 
         l2_norm_squared = sum([(abs(w)).sum() for w in self.params])
-        #lmbda_l2 = 0.0000003
-        lmbda_l2 = 0.0
+        lmbda_l2 = 0.0000003
+        #lmbda_l2 = 0.0
 
         self.get_weight_sum = theano.function(inputs=[],outputs=[l2_norm_squared])
 
@@ -241,8 +241,7 @@ class Worker():
         y = T.iscalar('classification')
 
         l2_norm_squared = sum([(abs(w)).sum() for w in self.params])
-        #lmbda_l2 = 0.0000003
-        lmbda_l2 = 0.0
+        lmbda_l2 = 0.0000003
 
         self.get_weight_sum = theano.function(inputs=[],outputs=[l2_norm_squared])
 
